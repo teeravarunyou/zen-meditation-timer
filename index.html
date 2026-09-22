@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#050605" />
+  <meta name="description" content="Still is a quiet, dark meditation timer with start and end Zen bowl chimes plus a monthly habit tracker." />
+  <title>Still — Meditation Timer</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <section class="screen timer-screen active-view" id="timerView" aria-labelledby="timerHeading">
+      <header class="screen-header">
+        <button class="ghost-icon" id="timerTabButton" aria-label="Open meditation habit" title="Open meditation habit">
+          <span class="menu-mark" aria-hidden="true"></span>
+        </button>
+        <div class="screen-heading">
+          <h1 id="timerHeading">Still</h1>
+          <p>A quieter mind. A kinder you.</p>
+        </div>
+        <button class="ghost-icon sound-test" id="soundTestBtn" aria-label="Test bowl sound" title="Test bowl sound">◌</button>
+      </header>
+
+      <div class="enso-timer" id="timerRing" aria-live="polite">
+        <svg class="enso-art" viewBox="0 0 320 320" aria-hidden="true">
+          <defs>
+            <filter id="ensoRough" x="-20%" y="-20%" width="140%" height="140%">
+              <feTurbulence type="fractalNoise" baseFrequency="0.017 0.035" numOctaves="2" seed="21" result="noise" />
+              <feDisplacementMap in="SourceGraphic" in2="noise" scale="8" xChannelSelector="R" yChannelSelector="B" />
+            </filter>
+            <linearGradient id="ensoTone" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#f5f2e9" stop-opacity="0.98" />
+              <stop offset="0.7" stop-color="#dedbd2" stop-opacity="0.84" />
+              <stop offset="1" stop-color="#a8a69f" stop-opacity="0.48" />
+            </linearGradient>
+          </defs>
+          <g filter="url(#ensoRough)" transform="rotate(-18 160 160)">
+            <circle class="enso-stroke enso-main" cx="160" cy="160" r="126" pathLength="100" />
+            <circle class="enso-stroke enso-dry-1" cx="160" cy="160" r="119" pathLength="100" />
+            <circle class="enso-stroke enso-dry-2" cx="160" cy="160" r="132" pathLength="100" />
+          </g>
+          <circle class="progress-track" cx="160" cy="160" r="102" />
+          <circle class="progress-line" id="ringProgress" cx="160" cy="160" r="102" />
+        </svg>
+        <div class="timer-content">
+          <div class="time" id="timeDisplay">30:00</div>
+          <div class="timer-state" id="timerState">Breathe. Be here.</div>
+        </div>
+      </div>
+
+      <p class="bell-note">Start bell <span>•</span> End bell only</p>
+
+      <div class="preset-row" aria-label="Meditation duration">
+        <button class="preset" data-minutes="15"><strong>15</strong><span>min</span></button>
+        <button class="preset" data-minutes="20"><strong>20</strong><span>min</span></button>
+        <button class="preset active" data-minutes="30"><strong>30</strong><span>min</span></button>
+        <button class="preset" data-minutes="45"><strong>45</strong><span>min</span></button>
+        <button class="preset" data-minutes="60"><strong>60</strong><span>min</span></button>
+      </div>
+
+      <div class="control-row" aria-label="Timer controls">
+        <button class="control control-primary" id="startBtn">
+          <span class="control-icon play-icon" aria-hidden="true"></span>
+          <span class="control-label">Start</span>
+        </button>
+        <button class="control" id="pauseBtn" disabled>
+          <span class="control-icon pause-icon" aria-hidden="true"></span>
+          <span class="control-label">Pause</span>
+        </button>
+        <button class="control" id="resetBtn" disabled>
+          <span class="control-icon reset-icon" aria-hidden="true">↻</span>
+          <span class="control-label">Reset</span>
+        </button>
+      </div>
+
+      <div class="bell-settings" aria-label="Sound settings">
+        <label class="bell-setting">
+          <span class="bell-icon" aria-hidden="true">♢</span>
+          <span class="bell-title">Starting bell</span>
+          <input type="checkbox" id="startBellToggle" checked />
+          <span class="on-off" aria-hidden="true">ON</span>
+        </label>
+        <label class="bell-setting">
+          <span class="bell-icon" aria-hidden="true">♢</span>
+          <span class="bell-title">Ending bell</span>
+          <input type="checkbox" id="endBellToggle" checked />
+          <span class="on-off" aria-hidden="true">ON</span>
+        </label>
+        <div class="bell-setting locked-off" aria-label="Interval bell off">
+          <span class="interval-icon" aria-hidden="true">▥</span>
+          <span class="bell-title">Interval bell</span>
+          <span class="on-off">OFF</span>
+        </div>
+      </div>
+
+      <p class="completion-note">Completed sessions are saved automatically to your monthly habit.</p>
+    </section>
+
+    <section class="screen habit-screen" id="habitView" aria-labelledby="habitHeading">
+      <header class="screen-header habit-header">
+        <button class="ghost-icon" id="habitTabButton" aria-label="Back to meditation timer" title="Back to meditation timer">
+          <span class="menu-mark" aria-hidden="true"></span>
+        </button>
+        <div class="screen-heading">
+          <h2 id="habitHeading">Meditation Habit</h2>
+          <p>Small moments. A calmer life.</p>
+        </div>
+        <div class="tiny-bars" aria-hidden="true"><i></i><i></i><i></i></div>
+      </header>
+
+      <section class="month-goal" aria-label="Monthly meditation goal">
+        <div>
+          <span class="stat-label">This month</span>
+          <div class="goal-number"><strong id="monthDays">0</strong><span>/ <b id="monthGoal">20</b> days</span></div>
+        </div>
+        <div class="goal-ring" aria-label="Monthly goal progress">
+          <svg viewBox="0 0 92 92" aria-hidden="true">
+            <circle class="goal-ring-track" cx="46" cy="46" r="35"></circle>
+            <circle class="goal-ring-progress" id="goalRingProgress" cx="46" cy="46" r="35"></circle>
+          </svg>
+          <strong id="monthPercent">0%</strong>
+        </div>
+      </section>
+
+      <div class="habit-summary">
+        <article class="stat-card">
+          <span class="stat-label">Total minutes</span>
+          <strong id="monthMinutes">0</strong>
+          <small>min</small>
+        </article>
+        <article class="stat-card">
+          <span class="stat-label">Sessions</span>
+          <strong id="monthSessions">0</strong>
+          <small>sessions</small>
+        </article>
+        <article class="stat-card">
+          <span class="stat-label">Current streak</span>
+          <strong id="currentStreak">0</strong>
+          <small>days</small>
+        </article>
+      </div>
+
+      <section class="longest-card">
+        <div>
+          <span class="stat-label">Longest streak</span>
+          <div><strong id="longestStreak">0</strong> <small>days</small></div>
+        </div>
+        <p>“Consistency, gently practiced.”</p>
+      </section>
+
+      <div class="brush-divider" aria-hidden="true"></div>
+
+      <section class="calendar-panel" aria-label="Monthly meditation calendar">
+        <div class="calendar-nav">
+          <strong id="calendarTitle"></strong>
+          <div class="calendar-arrows">
+            <button id="prevMonthBtn" aria-label="Previous month">‹</button>
+            <button id="nextMonthBtn" aria-label="Next month">›</button>
+          </div>
+        </div>
+        <div class="calendar-weekdays" aria-hidden="true">
+          <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+        </div>
+        <div class="calendar-grid" id="calendarGrid"></div>
+      </section>
+
+      <footer class="habit-footer">
+        <div class="habit-message-wrap">
+          <span class="sprout" aria-hidden="true">⌁</span>
+          <p id="habitMessage">Begin with one quiet session.</p>
+        </div>
+        <button class="text-btn" id="exportBtn">Backup</button>
+      </footer>
+    </section>
+  </main>
+
+  <nav class="mobile-nav" aria-label="App sections">
+    <button class="mobile-tab active" data-view="timerView">Timer</button>
+    <button class="mobile-tab" data-view="habitView">Habit</button>
+  </nav>
+
+  <audio id="startBell" preload="auto" src="assets/start_bowl.wav"></audio>
+  <audio id="endBell" preload="auto" src="assets/end_bowl.wav"></audio>
+  <script src="app.js"></script>
+</body>
+</html>
