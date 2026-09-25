@@ -1,6 +1,6 @@
 # Still — Zen Meditation Timer
 
-A quiet, nighttime-friendly meditation timer with an original Enso-inspired interface, synthetic Zen-bowl-like start/end chimes, and a monthly meditation habit tracker.
+A quiet, nighttime-friendly meditation timer with an original Enso-inspired interface, a single selected Zen-bowl sound used for start/end chimes, and a monthly meditation habit tracker.
 
 ## Design direction
 
@@ -13,8 +13,8 @@ A quiet, nighttime-friendly meditation timer with an original Enso-inspired inte
 ## Meditation timer
 
 - Presets: 15, 20, 30, 45, and 60 minutes
-- Start bell: one gentle bowl strike
-- End bell: two soft bowl strikes
+- Start bell: one gentle bowl strike from `assets/start_bowl.wav`
+- End bell: the exact same original-pitch bowl sound twice, 3 seconds apart at equal volume
 - **No interval bell** — the session stays silent between start and finish
 - Start / pause / resume / reset
 - Wake Lock support on compatible browsers
@@ -42,7 +42,6 @@ Only a timer that reaches zero is added to history. Reset or abandoned sessions 
 - `styles.css` — dark Zen / Enso visual design
 - `app.js` — timer and habit logic
 - `assets/start_bowl.wav` — original synthetic opening chime
-- `assets/end_bowl.wav` — original synthetic closing chime
 - `generate_sounds.py` — Python generator for the two bowl sounds
 - `serve.py` — local development server
 

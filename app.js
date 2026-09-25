@@ -279,32 +279,28 @@ function getAudioContext() {
 async function loadBellBuffers() {
   const context = getAudioContext();
   if (!context) return false;
-  if (startBellBuffer && endBellBuffer) return true;
+  if (startBellBuffer) return true;
   if (audioBuffersLoading) return audioBuffersLoading;
 
-  audioBuffersLoading = Promise.all([
-    fetch('assets/start_bowl.wav', { cache: 'force-cache' })
-      .then(response => {
-        if (!response.ok) throw new Error(`Start bell HTTP ${response.status}`);
-        return response.arrayBuffer();
-      })
-      .then(data => context.decodeAudioData(data.slice(0))),
-    fetch('assets/end_bowl.wav', { cache: 'force-cache' })
-      .then(response => {
-        if (!response.ok) throw new Error(`End bell HTTP ${response.status}`);
-        return response.arrayBuffer();
-      })
-      .then(data => context.decodeAudioData(data.slice(0)))
-  ]).then(([startBuffer, endBuffer]) => {
-    startBellBuffer = startBuffer;
-    endBellBuffer = endBuffer;
-    return true;
-  }).catch(error => {
-    console.debug('Web Audio bell preload failed; HTML audio fallback remains available.', error);
-    return false;
-  }).finally(() => {
-    audioBuffersLoading = null;
-  });
+  // Still now uses one selected bowl sound for both start and finish.
+  audioBuffersLoading = fetch('assets/start_bowl.wav', { cache: 'force-cache' })
+    .then(response => {
+      if (!response.ok) throw new Error(`Bell HTTP ${response.status}`);
+      return response.arrayBuffer();
+    })
+    .then(data => context.decodeAudioData(data.slice(0)))
+    .then(buffer => {
+      startBellBuffer = buffer;
+      endBellBuffer = buffer; // Same timbre at both ends of the session.
+      return true;
+    })
+    .catch(error => {
+      console.debug('Web Audio bell preload failed; HTML audio fallback remains available.', error);
+      return false;
+    })
+    .finally(() => {
+      audioBuffersLoading = null;
+    });
 
   return audioBuffersLoading;
 }
@@ -314,7 +310,6 @@ async function unlockAudio() {
   if (context) {
     try {
       if (context.state !== 'running') await context.resume();
-      // A nearly silent one-sample buffer establishes playback permission on iOS/iPadOS.
       const silentBuffer = context.createBuffer(1, 1, context.sampleRate);
       const source = context.createBufferSource();
       source.buffer = silentBuffer;
@@ -328,7 +323,6 @@ async function unlockAudio() {
     }
   }
 
-  // Fallback for browsers without usable Web Audio.
   for (const audioEl of [startBell, endBell]) {
     try {
       audioEl.muted = true;
@@ -345,21 +339,33 @@ async function unlockAudio() {
   audioUnlocked = true;
 }
 
+function scheduleWebAudioStrike(context, buffer, when, volume) {
+  const source = context.createBufferSource();
+  const gain = context.createGain();
+  source.buffer = buffer;
+  source.playbackRate.value = 1.0; // Preserve the WAV's original pitch and speed.
+  gain.gain.value = volume;
+  source.connect(gain);
+  gain.connect(context.destination);
+  source.start(when);
+}
+
 async function playBell(kind, volume = 0.82) {
   const context = getAudioContext();
-  const buffer = kind === 'end' ? endBellBuffer : startBellBuffer;
+  const buffer = startBellBuffer;
 
   if (context && buffer) {
     try {
       if (context.state === 'suspended') await context.resume();
       if (context.state === 'running') {
-        const source = context.createBufferSource();
-        const gain = context.createGain();
-        source.buffer = buffer;
-        gain.gain.value = volume;
-        source.connect(gain);
-        gain.connect(context.destination);
-        source.start(0);
+        const now = context.currentTime + 0.03;
+        scheduleWebAudioStrike(context, buffer, now, volume);
+
+        // The ending bell uses the same bowl twice. Scheduling both strikes
+        // in one AudioContext operation is more reliable on iPhone/iPad.
+        if (kind === 'end') {
+          scheduleWebAudioStrike(context, buffer, now + 3.0, volume);
+        }
         return true;
       }
     } catch (error) {
@@ -367,18 +373,32 @@ async function playBell(kind, volume = 0.82) {
     }
   }
 
+  // HTMLAudio fallback. Both audio elements point to the same selected sound.
   const audioEl = kind === 'end' ? endBell : startBell;
   try {
     audioEl.pause();
     audioEl.currentTime = 0;
     audioEl.volume = volume;
+    audioEl.playbackRate = 1.0;
     await audioEl.play();
+
+    if (kind === 'end') {
+      window.setTimeout(() => {
+        try {
+          const secondStrike = startBell.cloneNode(true);
+          secondStrike.volume = Math.max(0, Math.min(1, volume));
+          secondStrike.playbackRate = 1.0;
+          secondStrike.play().catch(() => {});
+        } catch (error) {}
+      }, 3000);
+    }
     return true;
   } catch (error) {
     console.debug('Bell playback was blocked by the browser.', error);
     return false;
   }
 }
+
 
 async function requestWakeLock() {
   if (!('wakeLock' in navigator)) return;
