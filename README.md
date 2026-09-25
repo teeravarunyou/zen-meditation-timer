@@ -75,3 +75,5 @@ GitHub Pages serves the deployed app as static HTML/CSS/JavaScript. Python is us
 ## Privacy / storage note
 
 Habit history stays in the browser on that device. It does not automatically sync between a phone and a computer. Clearing browser/site data can remove the history, so the app includes **Backup** to export the sessions as JSON.
+
+![image alt](https://github.com/teeravarunyou/zen-meditation-timer/blob/e6da5f8b35c1c5fc95c203884205ed7e9118d783/screenshot.jpg)
