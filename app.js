@@ -56,6 +56,10 @@ let finishAt = null;
 let timerId = null;
 let wakeLock = null;
 let audioUnlocked = false;
+let audioContext = null;
+let startBellBuffer = null;
+let endBellBuffer = null;
+let audioBuffersLoading = null;
 let calendarCursor = new Date();
 calendarCursor.setDate(1);
 
@@ -264,8 +268,67 @@ function updateDuration(minutes, isCustom = false) {
   updateDisplay();
 }
 
+function getAudioContext() {
+  if (!audioContext) {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (AudioContextClass) audioContext = new AudioContextClass();
+  }
+  return audioContext;
+}
+
+async function loadBellBuffers() {
+  const context = getAudioContext();
+  if (!context) return false;
+  if (startBellBuffer && endBellBuffer) return true;
+  if (audioBuffersLoading) return audioBuffersLoading;
+
+  audioBuffersLoading = Promise.all([
+    fetch('assets/start_bowl.wav', { cache: 'force-cache' })
+      .then(response => {
+        if (!response.ok) throw new Error(`Start bell HTTP ${response.status}`);
+        return response.arrayBuffer();
+      })
+      .then(data => context.decodeAudioData(data.slice(0))),
+    fetch('assets/end_bowl.wav', { cache: 'force-cache' })
+      .then(response => {
+        if (!response.ok) throw new Error(`End bell HTTP ${response.status}`);
+        return response.arrayBuffer();
+      })
+      .then(data => context.decodeAudioData(data.slice(0)))
+  ]).then(([startBuffer, endBuffer]) => {
+    startBellBuffer = startBuffer;
+    endBellBuffer = endBuffer;
+    return true;
+  }).catch(error => {
+    console.debug('Web Audio bell preload failed; HTML audio fallback remains available.', error);
+    return false;
+  }).finally(() => {
+    audioBuffersLoading = null;
+  });
+
+  return audioBuffersLoading;
+}
+
 async function unlockAudio() {
-  if (audioUnlocked) return;
+  const context = getAudioContext();
+  if (context) {
+    try {
+      if (context.state !== 'running') await context.resume();
+      // A nearly silent one-sample buffer establishes playback permission on iOS/iPadOS.
+      const silentBuffer = context.createBuffer(1, 1, context.sampleRate);
+      const source = context.createBufferSource();
+      source.buffer = silentBuffer;
+      source.connect(context.destination);
+      source.start(0);
+      await loadBellBuffers();
+      audioUnlocked = context.state === 'running';
+      if (audioUnlocked) return;
+    } catch (error) {
+      console.debug('Web Audio unlock was blocked; trying HTML audio fallback.', error);
+    }
+  }
+
+  // Fallback for browsers without usable Web Audio.
   for (const audioEl of [startBell, endBell]) {
     try {
       audioEl.muted = true;
@@ -276,20 +339,44 @@ async function unlockAudio() {
       audioEl.muted = false;
     } catch (error) {
       audioEl.muted = false;
-      console.debug('Audio unlock was blocked by the browser.', error);
+      console.debug('HTML audio unlock was blocked by the browser.', error);
     }
   }
   audioUnlocked = true;
 }
 
-async function playAudio(audioEl, volume = 0.82) {
+async function playBell(kind, volume = 0.82) {
+  const context = getAudioContext();
+  const buffer = kind === 'end' ? endBellBuffer : startBellBuffer;
+
+  if (context && buffer) {
+    try {
+      if (context.state === 'suspended') await context.resume();
+      if (context.state === 'running') {
+        const source = context.createBufferSource();
+        const gain = context.createGain();
+        source.buffer = buffer;
+        gain.gain.value = volume;
+        source.connect(gain);
+        gain.connect(context.destination);
+        source.start(0);
+        return true;
+      }
+    } catch (error) {
+      console.debug('Web Audio playback failed; trying HTML audio fallback.', error);
+    }
+  }
+
+  const audioEl = kind === 'end' ? endBell : startBell;
   try {
     audioEl.pause();
     audioEl.currentTime = 0;
     audioEl.volume = volume;
     await audioEl.play();
+    return true;
   } catch (error) {
-    console.debug('Audio playback was blocked by the browser.', error);
+    console.debug('Bell playback was blocked by the browser.', error);
+    return false;
   }
 }
 
@@ -316,7 +403,7 @@ async function beginOrResume() {
   if (!hasStarted) {
     hasStarted = true;
     remainingSeconds = durationSeconds;
-    if (startBellToggle.checked) playAudio(startBell, 0.84);
+    if (startBellToggle.checked) playBell('start', 0.84);
   }
 
   finishAt = Date.now() + remainingSeconds * 1000;
@@ -390,7 +477,7 @@ function finishSession() {
   updateDisplay();
 
   recordCompletedSession(completedMinutes);
-  if (endBellToggle.checked) playAudio(endBell, 0.82);
+  if (endBellToggle.checked) playBell('end', 0.82);
 }
 
 function exportData() {
@@ -459,7 +546,11 @@ startBtn.addEventListener('click', () => {
 });
 pauseBtn.addEventListener('click', pauseSession);
 resetBtn.addEventListener('click', resetSession);
-soundTestBtn.addEventListener('click', () => playAudio(startBell, 0.74));
+soundTestBtn.addEventListener('click', async (event) => {
+  await unlockAudio();
+  // Normal tap tests the opening bell; Shift-click tests the ending bell on desktop.
+  playBell(event.shiftKey ? 'end' : 'start', 0.74);
+});
 
 startBellToggle.addEventListener('change', syncBellLabels);
 endBellToggle.addEventListener('change', syncBellLabels);
@@ -479,9 +570,15 @@ timerTabButton.addEventListener('click', () => showView('habitView'));
 habitTabButton.addEventListener('click', () => showView('timerView'));
 
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && running) {
-    requestWakeLock();
-    tick();
+  if (document.visibilityState === 'visible') {
+    const context = getAudioContext();
+    if (context && context.state === 'suspended' && audioUnlocked) {
+      context.resume().catch(() => {});
+    }
+    if (running) {
+      requestWakeLock();
+      tick();
+    }
   }
 });
 
