@@ -11,7 +11,12 @@ const soundTestBtn = document.getElementById('soundTestBtn');
 const startBellToggle = document.getElementById('startBellToggle');
 const endBellToggle = document.getElementById('endBellToggle');
 const ringProgress = document.getElementById('ringProgress');
-const presetButtons = [...document.querySelectorAll('.preset')];
+const presetButtons = [...document.querySelectorAll('.preset[data-minutes]')];
+const customTimeBtn = document.getElementById('customTimeBtn');
+const customTimePanel = document.getElementById('customTimePanel');
+const customHours = document.getElementById('customHours');
+const customMinutes = document.getElementById('customMinutes');
+const customSetBtn = document.getElementById('customSetBtn');
 
 const currentStreakEl = document.getElementById('currentStreak');
 const longestStreakEl = document.getElementById('longestStreak');
@@ -50,6 +55,7 @@ let hasStarted = false;
 let finishAt = null;
 let timerId = null;
 let wakeLock = null;
+let audioUnlocked = false;
 let calendarCursor = new Date();
 calendarCursor.setDate(1);
 
@@ -245,15 +251,35 @@ function updateDisplay() {
   document.title = running ? `${formatTime(remainingSeconds)} · Still` : 'Still — Meditation Timer';
 }
 
-function updateDuration(minutes) {
+function updateDuration(minutes, isCustom = false) {
   if (hasStarted) return;
   const value = Number(minutes);
+  if (!Number.isFinite(value) || value <= 0) return;
   durationSeconds = value * 60;
   remainingSeconds = durationSeconds;
   presetButtons.forEach(button => {
-    button.classList.toggle('active', Number(button.dataset.minutes) === value);
+    button.classList.toggle('active', !isCustom && Number(button.dataset.minutes) === value);
   });
+  if (customTimeBtn) customTimeBtn.classList.toggle('active', isCustom);
   updateDisplay();
+}
+
+async function unlockAudio() {
+  if (audioUnlocked) return;
+  for (const audioEl of [startBell, endBell]) {
+    try {
+      audioEl.muted = true;
+      audioEl.currentTime = 0;
+      await audioEl.play();
+      audioEl.pause();
+      audioEl.currentTime = 0;
+      audioEl.muted = false;
+    } catch (error) {
+      audioEl.muted = false;
+      console.debug('Audio unlock was blocked by the browser.', error);
+    }
+  }
+  audioUnlocked = true;
 }
 
 async function playAudio(audioEl, volume = 0.82) {
@@ -285,7 +311,8 @@ function tick() {
   if (remainingSeconds <= 0) finishSession();
 }
 
-function beginOrResume() {
+async function beginOrResume() {
+  await unlockAudio();
   if (!hasStarted) {
     hasStarted = true;
     remainingSeconds = durationSeconds;
@@ -300,6 +327,7 @@ function beginOrResume() {
   pauseBtn.disabled = false;
   resetBtn.disabled = false;
   presetButtons.forEach(button => button.disabled = true);
+  if (customTimeBtn) customTimeBtn.disabled = true;
   requestWakeLock();
 
   clearInterval(timerId);
@@ -337,6 +365,7 @@ function resetSession() {
   pauseBtn.disabled = true;
   resetBtn.disabled = true;
   presetButtons.forEach(button => button.disabled = false);
+  if (customTimeBtn) customTimeBtn.disabled = false;
   releaseWakeLock();
   updateDisplay();
 }
@@ -356,6 +385,7 @@ function finishSession() {
   pauseBtn.disabled = true;
   resetBtn.disabled = false;
   presetButtons.forEach(button => button.disabled = false);
+  if (customTimeBtn) customTimeBtn.disabled = false;
   releaseWakeLock();
   updateDisplay();
 
@@ -397,7 +427,30 @@ function showView(viewId) {
 }
 
 presetButtons.forEach(button => {
-  button.addEventListener('click', () => updateDuration(button.dataset.minutes));
+  button.addEventListener('click', () => {
+    customTimePanel.hidden = true;
+    updateDuration(button.dataset.minutes);
+  });
+});
+
+customTimeBtn.addEventListener('click', () => {
+  if (hasStarted) return;
+  customTimePanel.hidden = !customTimePanel.hidden;
+  if (!customTimePanel.hidden) customMinutes.focus();
+});
+
+customSetBtn.addEventListener('click', () => {
+  const hours = Math.max(0, Math.min(23, Number(customHours.value) || 0));
+  const minutes = Math.max(0, Math.min(59, Number(customMinutes.value) || 0));
+  const totalMinutes = hours * 60 + minutes;
+  if (totalMinutes < 1) {
+    customMinutes.value = 1;
+    return;
+  }
+  customHours.value = hours;
+  customMinutes.value = minutes;
+  updateDuration(totalMinutes, true);
+  customTimePanel.hidden = true;
 });
 
 startBtn.addEventListener('click', () => {

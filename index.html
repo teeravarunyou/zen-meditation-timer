@@ -57,6 +57,17 @@
         <button class="preset active" data-minutes="30"><strong>30</strong><span>min</span></button>
         <button class="preset" data-minutes="45"><strong>45</strong><span>min</span></button>
         <button class="preset" data-minutes="60"><strong>60</strong><span>min</span></button>
+        <button class="preset custom-preset" id="customTimeBtn"><strong>+</strong><span>Custom</span></button>
+      </div>
+
+      <div class="custom-time-panel" id="customTimePanel" hidden>
+        <div class="custom-time-fields">
+          <label><span>Hours</span><input id="customHours" type="number" min="0" max="23" value="0" inputmode="numeric" /></label>
+          <span class="custom-time-colon">:</span>
+          <label><span>Minutes</span><input id="customMinutes" type="number" min="0" max="59" value="10" inputmode="numeric" /></label>
+          <button type="button" class="custom-set-btn" id="customSetBtn">Set</button>
+        </div>
+        <p>Choose any duration from 1 minute up to 23 h 59 min.</p>
       </div>
 
       <div class="control-row" aria-label="Timer controls">
